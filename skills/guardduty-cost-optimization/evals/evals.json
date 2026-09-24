@@ -1,0 +1,54 @@
+[
+  {
+    "id": "guardduty-cost-smoke-test",
+    "prompt": "Read guardduty-context.json. List each enabled protection plan, its data source, and its region. No analysis needed.",
+    "expected_output": "Lists every protection plan from files/guardduty-context.json with its data source and region exactly as defined in the file.",
+    "files": ["files/guardduty-context.json"],
+    "assertions": [
+      "matches regex /[a-z]{2}-[a-z]+-\\d/",
+      "contains 'Protection' or contains 'protection' or contains 'Runtime' or contains 'Foundational'",
+      "contains 'region' or contains 'Region'"
+    ]
+  },
+  {
+    "id": "guardduty-cost-artifact-naming",
+    "prompt": "Read guardduty-context.json. Identify the account ID, then state the report artifact filename you would generate for this review (use today's date in YYYY-MM-DD form). Do not run the review.",
+    "expected_output": "Identifies the account from files/guardduty-context.json and proposes an artifact name of the form guardduty-cost-optimization-<account-id>-<YYYY-MM-DD>.md.",
+    "files": ["files/guardduty-context.json"],
+    "assertions": [
+      "matches regex /guardduty-cost-optimization-[a-z0-9-]+-\\d{4}-\\d{2}-\\d{2}\\.md/"
+    ]
+  },
+  {
+    "id": "guardduty-cost-runtime-offset",
+    "prompt": "According to the skill, how does enabling GuardDuty Runtime Monitoring affect VPC Flow Log processing charges for the instances it monitors? No account access required.",
+    "expected_output": "Explains that for instances actively monitored by the Runtime Monitoring agent, GuardDuty does not charge for VPC Flow Logs processing, so enabling Runtime Monitoring decreases VPC Flow Log usage/charges (and disabling it, or the agent not transmitting, restores them). The two line items trade against each other.",
+    "files": [],
+    "assertions": [
+      "contains 'Runtime Monitoring' or contains 'runtime monitoring'",
+      "contains 'VPC Flow Log' or contains 'VPC flow log' or contains 'flow log'",
+      "contains 'not charge' or contains 'does not' or contains 'decrease' or contains 'offset' or contains 'no charge'"
+    ]
+  },
+  {
+    "id": "guardduty-cost-log-config-quirk",
+    "prompt": "A user asks whether disabling their own VPC Flow Logs or S3 data event logging will reduce their GuardDuty bill. According to the skill, what is the correct answer and why? No account access required.",
+    "expected_output": "States that changing customer-side log configuration does NOT reduce GuardDuty cost because GuardDuty ingests from independent internal sources; the only cost lever is the GuardDuty protection-plan configuration itself.",
+    "files": [],
+    "assertions": [
+      "contains 'not' or contains 'does not' or contains \"doesn't\"",
+      "contains 'independent' or contains 'protection plan' or contains 'protection-plan' or contains 'internal sources'"
+    ]
+  },
+  {
+    "id": "guardduty-cost-security-tradeoff",
+    "prompt": "According to the skill, should it ever recommend disabling a GuardDuty protection plan purely to save money? Explain the framing the skill requires. No account access required.",
+    "expected_output": "States that the skill must never recommend disabling a protection plan on cost grounds alone; GuardDuty is a security control, so every reduction is framed as a cost-vs-risk (cost-vs-security) tradeoff citing finding activity, with the security decision deferred to the user.",
+    "files": [],
+    "assertions": [
+      "contains 'never' or contains 'not' or contains 'should not'",
+      "contains 'security' or contains 'risk'",
+      "contains 'tradeoff' or contains 'trade-off' or contains 'trade off' or contains 'value'"
+    ]
+  }
+]

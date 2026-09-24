@@ -29,6 +29,9 @@ Metadata:
           - EnableDmsOperationReview
           - EnableAgentCoreObservabilitySetup
           - EnableAgentCoreOpsReview
+          - EnableCloudTrailCostOptimization
+          - EnableConfigCostOptimization
+          - EnableGuardDutyCostOptimization
       - Label:
           default: Optional Resource Scoping
         Parameters:
@@ -125,6 +128,24 @@ Parameters:
     AllowedValues: ['true', 'false']
     Default: 'true'
 
+  EnableCloudTrailCostOptimization:
+    Type: String
+    Description: CloudTrail Cost Optimization skill (adds ce:GetCostAndUsage and s3:GetBucketLifecycleConfiguration; other reads covered by the managed policy).
+    AllowedValues: ['true', 'false']
+    Default: 'true'
+
+  EnableConfigCostOptimization:
+    Type: String
+    Description: AWS Config Cost Optimization skill (adds ce:GetCostAndUsage, s3:GetBucketLifecycleConfiguration, and optional Athena reads for CI-driver attribution; other reads covered by the managed policy).
+    AllowedValues: ['true', 'false']
+    Default: 'true'
+
+  EnableGuardDutyCostOptimization:
+    Type: String
+    Description: Amazon GuardDuty Cost Optimization skill (adds ce:GetCostAndUsage; GuardDuty read and CloudWatch usage-metric reads covered by the managed policy).
+    AllowedValues: ['true', 'false']
+    Default: 'true'
+
 Conditions:
   CreateNewRole: !Equals [!Ref ExistingRoleName, '']
   SkillAwsHealthEvents: !Equals [!Ref EnableAwsHealthEvents, 'true']
@@ -136,6 +157,9 @@ Conditions:
   SkillDmsOperationReview: !Equals [!Ref EnableDmsOperationReview, 'true']
   SkillAgentCoreObservabilitySetup: !Equals [!Ref EnableAgentCoreObservabilitySetup, 'true']
   SkillAgentCoreOpsReview: !Equals [!Ref EnableAgentCoreOpsReview, 'true']
+  SkillCloudTrailCostOptimization: !Equals [!Ref EnableCloudTrailCostOptimization, 'true']
+  SkillConfigCostOptimization: !Equals [!Ref EnableConfigCostOptimization, 'true']
+  SkillGuardDutyCostOptimization: !Equals [!Ref EnableGuardDutyCostOptimization, 'true']
   HasRegionRestriction: !Not [!Equals [!Join ['', !Ref AllowedRegions], '']]
 
 Resources:
@@ -404,6 +428,84 @@ Resources:
               - ec2:DescribeSubnets
             Resource: '*'
 
+  # cloudtrail-cost-optimization: adds ce:GetCostAndUsage (dollar sizing) and
+  # s3:GetBucketLifecycleConfiguration (log-bucket lifecycle hygiene). CloudTrail
+  # Describe/Get/List, CloudWatch, and Organizations reads are covered by
+  # AIDevOpsAgentAccessPolicy. Read-only — no trail/event-selector mutations.
+  PolicyCloudTrailCostOptimization:
+    Type: AWS::IAM::Policy
+    Condition: SkillCloudTrailCostOptimization
+    Properties:
+      PolicyName: DevOpsAgentSkill-CloudTrailCostOptimization
+      Roles:
+        - !If [CreateNewRole, !Ref DevOpsAgentRole, !Ref ExistingRoleName]
+      PolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Sid: CostExplorerRead
+            Effect: Allow
+            Action:
+              - ce:GetCostAndUsage
+            Resource: '*'
+          - Sid: S3LifecycleRead
+            Effect: Allow
+            Action:
+              - s3:GetBucketLifecycleConfiguration
+            Resource: '*'
+
+  # config-cost-optimization: adds ce:GetCostAndUsage (dollar sizing),
+  # s3:GetBucketLifecycleConfiguration (delivery-bucket hygiene), and optional
+  # Athena reads for authoritative configuration-item-driver attribution over the
+  # Config S3 data. Config Describe/Get, CloudWatch, and Organizations reads are
+  # covered by AIDevOpsAgentAccessPolicy. Read-only — no recorder/rule mutations.
+  PolicyConfigCostOptimization:
+    Type: AWS::IAM::Policy
+    Condition: SkillConfigCostOptimization
+    Properties:
+      PolicyName: DevOpsAgentSkill-ConfigCostOptimization
+      Roles:
+        - !If [CreateNewRole, !Ref DevOpsAgentRole, !Ref ExistingRoleName]
+      PolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Sid: CostExplorerRead
+            Effect: Allow
+            Action:
+              - ce:GetCostAndUsage
+            Resource: '*'
+          - Sid: S3LifecycleRead
+            Effect: Allow
+            Action:
+              - s3:GetBucketLifecycleConfiguration
+            Resource: '*'
+          - Sid: AthenaCiDriverAnalysis
+            Effect: Allow
+            Action:
+              - athena:StartQueryExecution
+              - athena:GetQueryExecution
+              - athena:GetQueryResults
+            Resource: '*'
+
+  # guardduty-cost-optimization: adds ce:GetCostAndUsage (dollar sizing). GuardDuty
+  # List/Get/Describe, CloudWatch AWS/GuardDuty usage-metric reads, and Organizations
+  # reads are covered by AIDevOpsAgentAccessPolicy. Read-only — no detector or
+  # protection-plan mutations.
+  PolicyGuardDutyCostOptimization:
+    Type: AWS::IAM::Policy
+    Condition: SkillGuardDutyCostOptimization
+    Properties:
+      PolicyName: DevOpsAgentSkill-GuardDutyCostOptimization
+      Roles:
+        - !If [CreateNewRole, !Ref DevOpsAgentRole, !Ref ExistingRoleName]
+      PolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Sid: CostExplorerRead
+            Effect: Allow
+            Action:
+              - ce:GetCostAndUsage
+            Resource: '*'
+
   # Optional: restrict agent to specific regions
   PolicyRegionalRestriction:
     Type: AWS::IAM::Policy
@@ -453,6 +555,9 @@ Outputs:
         - database-migration-service-expertise: ${EnableDmsOperationReview} (dms:TestConnection)
         - agentcore-observability-setup: ${EnableAgentCoreObservabilitySetup} (bedrock-agentcore:Get/ListAgentRuntime, xray:GetTraceSegmentDestination, logs:DescribeDeliveries/DeliverySources/DeliveryDestinations/ResourcePolicies, lambda:GetFunctionConfiguration, ecs:DescribeTaskDefinition/DescribeServices/ListTasks, eks:DescribeCluster)
         - agentcore-ops-review: ${EnableAgentCoreOpsReview} (bedrock-agentcore read-only List/Get for runtimes/memories/gateways/browsers/code-interpreters/workload-identities, ec2:DescribeSubnets)
+        - cloudtrail-cost-optimization: ${EnableCloudTrailCostOptimization} (ce:GetCostAndUsage, s3:GetBucketLifecycleConfiguration)
+        - config-cost-optimization: ${EnableConfigCostOptimization} (ce:GetCostAndUsage, s3:GetBucketLifecycleConfiguration, athena:StartQueryExecution/GetQueryExecution/GetQueryResults)
+        - guardduty-cost-optimization: ${EnableGuardDutyCostOptimization} (ce:GetCostAndUsage)
       Skills covered by AIDevOpsAgentAccessPolicy (no extra policy needed):
         - eks-operation-review, enrich-with-aws-security-agent, crm-production-investigation-guidelines
       No IAM required:

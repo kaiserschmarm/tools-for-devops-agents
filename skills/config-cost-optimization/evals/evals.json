@@ -1,0 +1,56 @@
+[
+  {
+    "id": "config-cost-smoke-test",
+    "prompt": "Read config-context.json. List each Region's recording mode, whether allSupported is enabled, and whether global resource types are recorded. No analysis needed.",
+    "expected_output": "Lists every Region entry from files/config-context.json with its recording mode, allSupported flag, and global-resource-type flag exactly as defined in the file.",
+    "files": ["files/config-context.json"],
+    "assertions": [
+      "matches regex /[a-z]{2}-[a-z]+-\\d/",
+      "contains 'continuous' or contains 'daily' or contains 'CONTINUOUS' or contains 'DAILY'",
+      "contains 'global' or contains 'Global'"
+    ]
+  },
+  {
+    "id": "config-cost-artifact-naming",
+    "prompt": "Read config-context.json. Identify the account ID, then state the report artifact filename you would generate for this review (use today's date in YYYY-MM-DD form). Do not run the review.",
+    "expected_output": "Identifies the account from files/config-context.json and proposes an artifact name of the form config-cost-optimization-<account-id>-<YYYY-MM-DD>.md.",
+    "files": ["files/config-context.json"],
+    "assertions": [
+      "matches regex /config-cost-optimization-[a-z0-9-]+-\\d{4}-\\d{2}-\\d{2}\\.md/"
+    ]
+  },
+  {
+    "id": "config-cost-frequency-reasoning",
+    "prompt": "Read config-context.json. Global resource types are recorded in both us-east-1 and us-west-2. Why is this a cost problem, and what is the recommended fix?",
+    "expected_output": "Explains that recording global resource types (e.g. IAM) in more than one Region records the same resources multiple times, multiplying configuration items, and recommends enabling global-resource recording in only one Region.",
+    "files": ["files/config-context.json"],
+    "assertions": [
+      "contains 'global' or contains 'Global'",
+      "contains 'one Region' or contains 'one region' or contains 'single Region' or contains 'single region'",
+      "contains 'duplicate' or contains 'multiplY' or contains 'multiple' or contains 'multiplies' or contains 'multiplying'"
+    ]
+  },
+  {
+    "id": "config-cost-billing-model",
+    "prompt": "According to the skill, for a resource that changes many times per day, which recording mode is usually cheaper — continuous or daily — and why? No account access required.",
+    "expected_output": "Explains that daily recording is usually cheaper for high-churn resources because it bills at most one configuration item per resource per day, whereas continuous recording bills every change, so continuous can cost more overall despite its lower per-CI price.",
+    "files": [],
+    "assertions": [
+      "contains 'daily' or contains 'Daily'",
+      "contains 'high-churn' or contains 'every change' or contains 'once per day' or contains 'one configuration item' or contains 'one CI'"
+    ]
+  },
+  {
+    "id": "config-cost-severity-definitions",
+    "prompt": "List the five severity levels the skill uses for cost optimization findings, in order from most to least urgent. No account access required.",
+    "expected_output": "Lists CRITICAL, HIGH, MEDIUM, LOW, INFO in that order.",
+    "files": [],
+    "assertions": [
+      "contains 'CRITICAL'",
+      "contains 'HIGH'",
+      "contains 'MEDIUM'",
+      "contains 'LOW'",
+      "contains 'INFO'"
+    ]
+  }
+]
